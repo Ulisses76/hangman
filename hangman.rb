@@ -1,49 +1,70 @@
 module GamingSets
+  require "json"
+
   class GamingBody
-    def initialize(hidden_word, shots = 10, word_working)
+
+    def initialize(hidden_word, shots = 10, word_working, words_tried)
       @@hidden_word = hidden_word
       @@word_working = word_working
-      @@shots = shots      
-      while @@word_working != @@hidden_word
+      @@shots = shots
+      @@words_tried = words_tried
+
+      while @@shots > 0
         showgame
         print "\ttype a word: (or type 'save' to save the game) :"
         choice = ""      
         while !choice.match(/[a-z]/i)
           choice = gets.chomp
           if choice.downcase == "save"
-            save_game          
+            save_game
           end
-          if @@word_working.include?(choice)
-            puts "\nalready typed !! try another one"
+          if @@words_tried.include?(choice)
+            print "\n\talready typed !! try another one :\n\t"
             choice = ""
+            next
           end
-          if choice.size > 1
-            puts "Wrong entry, try again"
+          if choice.size > 1 || choice.size == 0
+            print "\tWrong entry, try again :\n\t"
             choice = ""
-          end        
+            next
+          end
+          @@words_tried << choice
         end
 
         if @@hidden_word.include?(choice)
+          puts "\n\tRight !!!\n\n"
           set_hidden(choice)
+          if @@hidden_word == @@word_working
+            congratz
+          end
+          next
         end
-        if @@hidden_word == @@word_working
-          congratz
-        end
+        
+        puts "\n\tWrong !\n\n"
+        
+        @@shots -= 1
       end
+      lost
     end
     
+    def lost
+      puts "You lose !!!"
+      puts "the right answer was '#{@@hidden_word.upcase}'"
+      play_again
+    end
+
     def congratz
-      puts ""
-      puts "############################################################"
-      puts "Congratz !!!!! Right asnwer !!!!\t'#{@@hidden_word.upcase}'"
-      puts "############################################################"
-      puts ""
       
+      puts "\n\t############################################################"
+      puts "\tCongratz !!!!! Right answer !!!!\t'#{@@hidden_word.upcase}'"
+      puts "\t############################################################\n\n"
+      
+
       play_again
     end
 
     def play_again
-      puts "Do you want play again? (y or n)"
+      print "\tDo you want play again? (y or n)\n\t"
       a = gets.chomp.downcase
       if a == "y"
         GameStart.new
@@ -62,13 +83,23 @@ module GamingSets
     end
 
     def save_game
+      json_save = JSON.dump({
+        :hidden_word => @@hidden_word,
+        :word_working => @@word_working,
+        :shots => @@shots,
+        :words_tried => @@words_tried
+      })
+      
+      
+      File.open("saved.json", "w") { |file| file.puts json_save}
+      puts "\n\n\ttil next time! bye!!"
       exit!
     end
 
     def showgame
       print "\t"
-      @@word_working.each_char { |c| print c + " "}
-      print "\t\t\t try: #{@@shots} \n"      
+      @@word_working.each_char { |c| print c.upcase + " "}
+      print "\ttry: #{@@shots}\ttrieds: #{@@words_tried.join(",").upcase} \n"      
     end
 
   end
@@ -96,6 +127,7 @@ end
   end
 
 class GameStart
+  require 'json'
   include GamingSets
 
   def initialize
@@ -103,18 +135,22 @@ class GameStart
     if a == ""
       Gaming.new
       a = "-" * Gaming.hidden_word.size
-      GamingBody.new(Gaming.hidden_word, 10, a)
+      GamingBody.new(Gaming.hidden_word, 10, a, [])
     else
       load_game
     end    
   end
 
   def load_game
-    exit!
+    # file = File.open("saved.json")
+    save = JSON.load File.read("saved.json")
+    GamingBody.new(save['hidden_word'], save['shots'], 
+      save['word_working'], save['words_tried'])
+    
   end
 
   def welcome
-    puts "
+    print "
     #############################################################
     #                    WELCOME TO HANGMAN                     #
     #############################################################
@@ -123,7 +159,7 @@ class GameStart
     You have 10 shots.
 
     Before we start, do you like to play a game previously saved?
-    type 'y' to load a game, or type <enter> :
+    type 'y' to load a game, or type <enter> :\n\t
     "
     answer = "0"
     until answer.match(/y/i) or answer == ""
